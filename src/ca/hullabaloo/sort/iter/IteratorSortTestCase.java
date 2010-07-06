@@ -4,14 +4,22 @@ import com.google.common.collect.AbstractIterator;
 import com.google.common.collect.Ordering;
 import junit.framework.TestCase;
 
+import java.util.Arrays;
 import java.util.Iterator;
+import java.util.List;
 import java.util.Random;
 
+@SuppressWarnings({"UnusedDeclaration"})
 public abstract class IteratorSortTestCase extends TestCase {
     protected abstract IteratorSort<String> sorter(int size);
 
     public void testEmpty() {
         testSort(0);
+    }
+
+    public void testSortWithNull() {
+        List<String> source = Arrays.asList("foo", null, "bar");
+        testSort(source.size(), source.iterator());
     }
 
     public void testTinySort() {
@@ -27,10 +35,10 @@ public abstract class IteratorSortTestCase extends TestCase {
     }
 
     public void testLargeSort() {
-        testSort(4 * pow(100, 3));
+        testSort(2 * pow(100, 3));
     }
 
-    private int pow(int base, int exponent) {
+    int pow(int base, int exponent) {
         int r = 1;
         while ((--exponent) >= 0)
             r *= base;
@@ -38,17 +46,35 @@ public abstract class IteratorSortTestCase extends TestCase {
     }
 
     private void testSort(int strings) {
-        IteratorSort<String> sorter = sorter(strings);
-        Ordering<String> cmp = Ordering.natural().nullsFirst();
-        final Iterator<String> sorted = sorter.sort(new RandomStrings(strings));
-        assertTrue(cmp.isOrdered(new Iterable<String>() {
-            public Iterator<String> iterator() {
-                return sorted;
-            }
-        }));
+        testSort(strings, new RandomStrings(strings));
     }
 
-    private static class RandomStrings extends AbstractIterator<String> {
+    private void testSort(int strings, Iterator<String> iter) {
+        IteratorSort<String> sorter = sorter(strings);
+        Ordering<String> cmp = Ordering.natural().nullsFirst();
+        final Iterator<String> sorted = sorter.sort(iter);
+        assertIsOrdered(cmp, strings, sorted);
+    }
+
+    private <T> void assertIsOrdered(Ordering<T> cmp, int expectedSize, Iterator<T> sorted) {
+        int count = 0;
+        if (sorted.hasNext()) {
+            count = 1;
+            T prev = sorted.next();
+            while (sorted.hasNext()) {
+                count++;
+                T next = sorted.next();
+                if (cmp.compare(prev, next) > 0) {
+                    fail();
+                }
+                prev = next;
+            }
+        }
+        assertEquals(expectedSize, count);
+    }
+
+
+    protected static class RandomStrings extends AbstractIterator<String> {
         private final Random rand = new Random();
         private int count;
 
@@ -58,7 +84,7 @@ public abstract class IteratorSortTestCase extends TestCase {
 
         @Override
         protected String computeNext() {
-            if (--count <= 0) return endOfData();
+            if (count-- <= 0) return endOfData();
             return randomString();
         }
 

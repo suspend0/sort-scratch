@@ -7,7 +7,7 @@ import java.util.Iterator;
 import java.util.List;
 
 public class DiskSort<T extends Comparable & Serializable> implements IteratorSort<T> {
-    private final Ordering<T> ord = Ordering.natural().nullsLast();
+    private final Ordering<T> ord = Ordering.natural().nullsFirst();
     private final int chunkSize;
 
     public DiskSort(int chunkSize) {
@@ -18,8 +18,8 @@ public class DiskSort<T extends Comparable & Serializable> implements IteratorSo
         List<File> files = Lists.newArrayList();
         try {
             writeSortedChunks(iter, files);
-            List<PeekingIterator<T>> iters = openStreams(files);
-            return new SortingIterator(iters);
+            List<Iterator<T>> iters = openStreams(files);
+            return new SortingIterator<T>(ord, iters);
         } catch (IOException e) {
             throw new RuntimeException(e);
         } finally {
@@ -29,8 +29,8 @@ public class DiskSort<T extends Comparable & Serializable> implements IteratorSo
         }
     }
 
-    private List<PeekingIterator<T>> openStreams(List<File> files) throws IOException {
-        List<PeekingIterator<T>> r = Lists.newArrayListWithCapacity(files.size());
+    private List<Iterator<T>> openStreams(List<File> files) throws IOException {
+        List<Iterator<T>> r = Lists.newArrayListWithCapacity(files.size());
         for (File f : files) {
             final ObjectInputStream in = new ObjectInputStream(new BufferedInputStream(new FileInputStream(f)));
             Iterator<T> iter = new AbstractIterator<T>() {
@@ -38,7 +38,7 @@ public class DiskSort<T extends Comparable & Serializable> implements IteratorSo
 
                 @Override
                 protected T computeNext() {
-                    if ((--count) == 0) return endOfData();
+                    if ((count--) == 0) return endOfData();
                     try {
                         //noinspection unchecked
                         return (T) in.readObject();
@@ -47,7 +47,7 @@ public class DiskSort<T extends Comparable & Serializable> implements IteratorSo
                     }
                 }
             };
-            r.add(Iterators.peekingIterator(iter));
+            r.add(iter);
         }
         return r;
     }
@@ -60,6 +60,7 @@ public class DiskSort<T extends Comparable & Serializable> implements IteratorSo
             files.add(file);
             ObjectOutputStream out = new ObjectOutputStream(new BufferedOutputStream(new FileOutputStream(file)));
 
+            // Iterators.partition returns unmodifiable lists (why?)
             List<T> chunk = ord.sortedCopy(chunks.next());
             out.writeInt(chunk.size());
             for (T o : chunk)
@@ -69,25 +70,4 @@ public class DiskSort<T extends Comparable & Serializable> implements IteratorSo
         }
     }
 
-    private class SortingIterator extends AbstractIterator<T> {
-        private final List<PeekingIterator<T>> iters;
-
-        public SortingIterator(List<PeekingIterator<T>> iters) {
-            this.iters = iters;
-        }
-
-        @Override
-        protected T computeNext() {
-            PeekingIterator<T> empty = Iterators.peekingIterator(Iterators.<T>singletonIterator(null));
-            PeekingIterator<T> minSoFar = empty;
-            for (PeekingIterator<T> iter : iters) {
-                if (iter.hasNext() && ord.compare(minSoFar.peek(), iter.peek()) < 0) {
-                    minSoFar = iter;
-                }
-            }
-            if (minSoFar == empty)
-                return endOfData();
-            return minSoFar.next();
-        }
-    }
 }
