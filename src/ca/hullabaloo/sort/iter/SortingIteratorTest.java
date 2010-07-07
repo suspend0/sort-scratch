@@ -37,7 +37,7 @@ public class SortingIteratorTest extends TestCase {
             expected.addAll(x);
         }
         expected = ord.sortedCopy(expected);
-        Iterator<String> sorted = new SortingIterator<String>(ord, iters);
+        Iterator<String> sorted = MergeSortedIterator.create(ord, iters);
         assertEquals(expected, ImmutableList.copyOf(sorted));
     }
 }

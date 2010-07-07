@@ -19,7 +19,7 @@ public class DiskSort<T extends Comparable & Serializable> implements IteratorSo
         try {
             writeSortedChunks(iter, files);
             List<Iterator<T>> iters = openStreams(files);
-            return new SortingIterator<T>(ord, iters);
+            return MergeSortedIterator.create(ord, iters);
         } catch (IOException e) {
             throw new RuntimeException(e);
         } finally {
