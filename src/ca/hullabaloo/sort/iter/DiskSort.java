@@ -30,6 +30,7 @@ public class DiskSort<T extends Comparable & Serializable> implements IteratorSo
     }
 
     private List<Iterator<T>> openStreams(List<File> files) throws IOException {
+        // NOTE that we use readUnshared() here b/c we don't want to keep a reference of what we read
         List<Iterator<T>> r = Lists.newArrayListWithCapacity(files.size());
         for (File f : files) {
             final ObjectInputStream in = new ObjectInputStream(new BufferedInputStream(new FileInputStream(f)));
@@ -41,7 +42,7 @@ public class DiskSort<T extends Comparable & Serializable> implements IteratorSo
                     if ((count--) == 0) return endOfData();
                     try {
                         //noinspection unchecked
-                        return (T) in.readObject();
+                        return (T) in.readUnshared();
                     } catch (Exception e) {
                         throw new RuntimeException(e);
                     }
@@ -53,6 +54,7 @@ public class DiskSort<T extends Comparable & Serializable> implements IteratorSo
     }
 
     private void writeSortedChunks(Iterator<T> iter, List<File> files) throws IOException {
+        // NOTE that we use writeUnshared() here b/c we don't want to keep a reference of what we read
         Iterator<List<T>> chunks = Iterators.partition(iter, chunkSize);
         while (chunks.hasNext()) {
             File file = File.createTempFile("DiskSort-", ".ser");
@@ -64,7 +66,7 @@ public class DiskSort<T extends Comparable & Serializable> implements IteratorSo
             List<T> chunk = ord.sortedCopy(chunks.next());
             out.writeInt(chunk.size());
             for (T o : chunk)
-                out.writeObject(o);
+                out.writeUnshared(o);
 
             out.close();
         }
